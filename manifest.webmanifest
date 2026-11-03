@@ -1,0 +1,17 @@
+{
+  "id": "/",
+  "name": "GVSUPERZSTORE",
+  "short_name": "GVSUPERZ",
+  "description": "Top up game dan apps premium.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#08060f",
+  "theme_color": "#8b5cf6",
+  "lang": "id",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

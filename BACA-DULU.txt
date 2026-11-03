@@ -1,0 +1,63 @@
+GVSUPERZSTORE — satu file index.html tanpa build (sama seperti GVSMARTPAY)
+==========================================================================
+Isi paket
+  index.html            -> seluruh website (beranda, produk, checkout, deposit, riwayat, akun, dashboard admin)
+  api/                  -> server Vercel: pay, pkqris (QRIS), haybi, account, admin, callback, sync-pending
+  package.json          -> dependensi api (firebase-admin)
+  vercel.json           -> cron harian + header PWA
+  firestore.rules.txt   -> aturan keamanan Firestore (WAJIB dipasang)
+  manifest + icon       -> PWA
+
+Fitur
+  - Kategori produk HANYA: Top Up Game dan Apps Premium (internet/pulsa/e-wallet sudah dihapus).
+  - Bayar: Saldo Akun, atau QRIS dinamis PunyaKios (QR tampil di dalam web, scan dari e-wallet/m-banking apa pun). Biaya QRIS ditanggung PEMBELI.
+  - Deposit saldo juga lewat QRIS. Tidak ada bukti transfer.
+  - Pesanan dikirim otomatis ke HAYBI atau PunyaKios (dipilih per nominal di Admin > Nominal).
+  - Pesanan gagal => saldo dikembalikan otomatis.
+
+Catatan
+  - Data lama dari Supabase tidak ikut pindah. Isi produk lagi lewat Admin.
+  - Gambar disimpan langsung di Firestore (dikecilkan otomatis), tidak butuh Firebase Storage.
+  - Pendaftar PERTAMA otomatis jadi admin. Daftar akun pertama segera setelah deploy.
+
+
+=== ERROR "Sesi tidak valid, login ulang" ===
+Artinya server menolak token login. Sekarang pesannya menyebut penyebab asli. Yang paling sering:
+  - FIREBASE_SERVICE_ACCOUNT di Vercel berasal dari project Firebase LAIN (mis. milik GVSMARTPAY). Harus dari project "gvsuperzstore":
+    Firebase Console > Project Settings > Service accounts > Generate new private key, tempel seluruh isi JSON ke env var, lalu Redeploy.
+  - Env var diubah tapi belum Redeploy.
+Detail teknisnya tercatat di Vercel > Logs (cari "authUser ditolak").
+
+=== LOADING TERUS / "Terjadi kesalahan server" ===
+Penyebab umum: kuota harian Firestore paket gratis (Spark) habis: 50.000 baca, 20.000 tulis, 20.000 hapus per hari. Reset sekitar 14.00 WIB.
+Pemakai terbesar: impor produk massal, Rapikan, Urutkan Harga Semua Produk, Margin Massal, Hapus Semua Nominal (tiap nominal = 1 baca/tulis).
+Cek di Firebase Console > Firestore Database > tab Usage. Solusi tetap: upgrade ke paket Blaze (bayar sesuai pemakaian, kuota gratis tetap ada).
+Detail error server ada di Vercel > Logs (cari "api error").
+
+=== KATALOG SATU DOKUMEN (hemat baca Firestore) ===
+LANGKAH WAJIB setelah deploy:
+ 1. Salin isi firestore.rules.txt terbaru ke Firebase Console > Firestore > Rules > Publish (ada aturan baru "catalog").
+ 2. Login sebagai admin > Admin > Provider > tekan "Bangun Ulang Katalog Pembeli" (sekali; membaca semua produk dan nominal).
+Cara kerja: pembeli membaca 1 dokumen per produk untuk nominal, dan 1 dokumen meta + beberapa potongan untuk daftar produk/banner (gambar tersimpan di dalam dokumen, jadi dipecah <= ~600 KB per potongan).
+Dokumen katalog = salinan TANPA harga modal dan kode reseller. Data asli (denominations, games, dll.) tetap sumber kebenaran.
+Admin otomatis memperbarui katalog saat menyimpan/menghapus nominal, impor, margin, urut harga, dan saat mengubah produk/banner/pengaturan.
+Kalau mengedit langsung di Firebase Console, tekan "Bangun Ulang Katalog Pembeli".
+Sebelum langkah 2, web tetap jalan dengan membaca koleksi asli seperti sebelumnya.
+
+=== GAME DENGAN SERVER/ZONE DI PUNYAKIOS ===
+Sesuai penjelasan owner PunyaKios: customer_no = ID game + koma + zone/server, contoh 12345678,1234.
+Pesanan game yang punya server ID lewat PunyaKios sekarang dikirim otomatis dengan format itu (sebelumnya diproses manual).
+Tes dulu dengan SKU Mobile Legends termurah ke akun sendiri sebelum dipakai untuk pembeli.
+
+=== v31: perubahan admin langsung tampil ke pembeli ===
+- Data publik dibaca langsung dari koleksi asli; admin hanya menaikkan "versi" di catalog/pub_meta.
+- Pembeli memantau catalog/pub_meta secara realtime: perubahan muncul beberapa detik tanpa refresh.
+- Tidak ada aturan Firestore baru.
+- SETELAH DEPLOY: buka Dashboard Admin > Pengaturan > tekan "Sinkronkan Semua Data ke Pembeli Sekarang" SEKALI.
+
+
+== CATATAN v32 ==
+- Favicon baru 96x96 (favicon.png, favicon-96x96.png), 192x192, dan favicon.ico.
+- robots.txt, sitemap.xml, dan canonical sudah memakai domain gvsuperzstore.my.id (ganti kalau domain berubah).
+- Beranda: tambah seksi Cara Order, Pertanyaan Umum, dan banner ajakan top up.
+- Setelah deploy: Search Console > Inspeksi URL > Request Indexing, kirim juga sitemap.xml.

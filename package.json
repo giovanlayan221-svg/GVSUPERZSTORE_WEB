@@ -1,0 +1,8 @@
+{
+  "name": "gvsuperzstore",
+  "private": true,
+  "description": "GVSUPERZSTORE - dependensi untuk folder /api (Vercel Serverless + Firebase Admin)",
+  "dependencies": {
+    "firebase-admin": "^12.1.0"
+  }
+}

@@ -1,0 +1,65 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{db}/documents {
+    function signedIn() { return request.auth != null; }
+    function isAdmin() {
+      return signedIn()
+        && exists(/databases/$(db)/documents/profiles/$(request.auth.uid))
+        && get(/databases/$(db)/documents/profiles/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // ===== Katalog publik (dibaca siapa saja, ditulis admin) =====
+    match /games/{id}          { allow read: if true; allow write: if isAdmin(); }
+    match /catalog/{id}        { allow read: if true; allow write: if isAdmin(); }   // salinan katalog 1 dokumen (hemat baca Firestore), tanpa harga modal
+    match /denominations/{id}  { allow read: if true; allow write: if isAdmin(); }
+    match /subcategories/{id}  { allow read: if true; allow write: if isAdmin(); }
+    match /product_fields/{id} { allow read: if true; allow write: if isAdmin(); }
+    match /banners/{id}        { allow read: if true; allow write: if isAdmin(); }
+    match /social_links/{id}   { allow read: if true; allow write: if isAdmin(); }
+    match /site_settings/{id}  { allow read: if true; allow write: if isAdmin(); }
+
+    // ===== Data pribadi: dibaca pemilik / admin. Ditulis HANYA oleh server (/api) =====
+    // CATATAN: query dari browser harus menyertakan filter user_id (aturan bukan filter).
+    match /profiles/{uid} {
+      allow get: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow list: if isAdmin();
+      allow write: if false;
+    }
+    match /orders/{id} {
+      allow read: if signedIn() && (resource.data.user_id == request.auth.uid || isAdmin());
+      allow write: if false;
+    }
+    match /transactions/{id} {
+      allow read: if signedIn() && (resource.data.user_id == request.auth.uid || isAdmin());
+      allow write: if false;
+    }
+    match /deposits/{id} {
+      allow read: if signedIn() && (resource.data.user_id == request.auth.uid || isAdmin());
+      allow write: if false;
+    }
+    match /notifications/{id} {
+      allow read: if signedIn() && resource.data.user_id == request.auth.uid;
+      // pengguna hanya boleh menandai "sudah dibaca"
+      allow update: if signedIn() && resource.data.user_id == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read_at', 'updated_at']);
+      allow create, delete: if false;
+    }
+    match /game_uids/{id} {
+      allow read, delete: if signedIn() && resource.data.user_id == request.auth.uid;
+      allow create: if signedIn() && request.resource.data.user_id == request.auth.uid;
+      allow update: if signedIn() && resource.data.user_id == request.auth.uid && request.resource.data.user_id == request.auth.uid;
+    }
+
+    // ===== Khusus admin =====
+    match /promo_codes/{id}  { allow read, write: if isAdmin(); }
+    match /admin_logs/{id}   { allow read: if isAdmin(); allow write: if false; }
+    match /promo_redemptions/{id} { allow read: if isAdmin(); allow write: if false; }
+    match /orderCosts/{id}   { allow read: if isAdmin(); allow write: if false; }
+
+    // ===== Hanya server (Admin SDK melewati aturan ini) =====
+    match /qrisPay/{id} { allow read, write: if false; }
+    match /meta/{id}    { allow read, write: if false; }
+
+    match /{document=**} { allow read, write: if false; }
+  }
+}

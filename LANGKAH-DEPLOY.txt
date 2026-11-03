@@ -1,0 +1,40 @@
+LANGKAH DEPLOY (drop to deploy, tanpa GitHub, tanpa build)
+==========================================================
+
+A. FIREBASE (project baru, terpisah dari GVSMARTPAY)
+ 1. console.firebase.google.com > Add project.
+ 2. Authentication > Get started > aktifkan "Email/Password" (login hanya pakai email, tanpa Google).
+ 3. Firestore Database > Create database > production mode > lokasi asia-southeast2.
+ 4. Firestore > tab Rules > hapus isinya > tempel isi file firestore.rules.txt > Publish.
+ 5. Project settings (ikon roda gigi) > Your apps > ikon web </> > daftarkan app > salin config
+    (apiKey, authDomain, projectId, storageBucket, messagingSenderId, appId).
+ 6. Project settings > Service accounts > Generate new private key > file JSON (RAHASIA).
+
+B. ISI CONFIG DI index.html  (WAJIB, sekali saja)
+ 1. (SUDAH DIISI untuk project "gvsuperzstore". Lewati bagian B ini.)
+ 1. Kalau suatu saat pindah project Firebase: buka index.html pakai Notepad.
+ 2. Cari tulisan  FIREBASE_CONFIG  (dekat bagian atas script).
+ 3. Ganti semua nilai "ISI_..." dengan config dari langkah A5. Simpan.
+
+C. VERCEL
+ 1. Deploy folder ini ke Vercel (drop/upload folder ini, sama seperti GVSMARTPAY).
+ 2. Settings > Environment Variables, isi:
+      FIREBASE_SERVICE_ACCOUNT  = seluruh isi file JSON dari A6 (satu baris)
+      PUNYAKIOS_API_KEY, PUNYAKIOS_API_SECRET
+      HAYBI_USERNAME, HAYBI_API_KEY
+      (OPSIONAL) CRON_SECRET    = boleh dikosongkan, web tetap jalan normal tanpa ini
+      PUNYAKIOS_FEE_CHARGE_TO   = (opsional) default "user" = biaya admin ditanggung pembeli; isi "merchant" bila toko yang menanggung
+ 3. Redeploy (wajib setiap kali mengubah Environment Variables).
+
+D. SETELAH ONLINE
+ 1. LANGSUNG daftar akun pertama di websitemu (otomatis jadi admin).
+ 2. Dashboard PunyaKios: webhook = https://DOMAINMU/api/punyakios-callback
+    Dashboard HAYBI    : callback = https://DOMAINMU/api/haybi-callback
+ 3. Login > Akun > Dashboard Admin:
+      Produk   -> tambah produk (pilih kategori Top Up Game / Apps Premium)
+      Nominal  -> tambah nominal; isi "Kirim otomatis via" (HAYBI/PunyaKios) + SKU; kosongkan = manual
+      Provider -> cek saldo PunyaKios/HAYBI, cari SKU, diagnosa pembayaran
+
+E. PENYAPU (opsional, boleh dilewati)
+  Hanya jaring pengaman kalau ada webhook yang terlewat. Tidak diisi = tidak masalah.
+  Kalau mau: isi CRON_SECRET di Vercel, lalu buat job di cron-job.org ke https://DOMAINMU/api/sync-pending?secret=ISI_CRON_SECRET
