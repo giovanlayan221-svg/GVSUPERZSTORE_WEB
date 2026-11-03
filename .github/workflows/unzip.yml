@@ -1,0 +1,60 @@
+name: Extract deploy zip
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "*.zip"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: extract-zip
+  cancel-in-progress: false
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract zip ke root repo
+        run: |
+          shopt -s nullglob
+          zips=(*.zip)
+          if [ ${#zips[@]} -eq 0 ]; then
+            echo "Tidak ada file zip, selesai."
+            exit 0
+          fi
+
+          ZIP="$(ls -t *.zip | head -n 1)"
+          echo "Mengekstrak: $ZIP"
+
+          rm -rf /tmp/ext && mkdir /tmp/ext
+          unzip -q -o "$ZIP" -d /tmp/ext
+
+          SRC=/tmp/ext
+          # kalau isi zip dibungkus satu folder, pakai isi folder itu
+          if [ ! -f "$SRC/index.html" ] && [ "$(ls -A "$SRC" | wc -l)" -eq 1 ] && [ -d "$SRC/$(ls -A "$SRC")" ]; then
+            SRC="$SRC/$(ls -A "$SRC")"
+          fi
+
+          rm -rf "$SRC/__MACOSX" "$SRC/.git" "$SRC/.github"
+          cp -a "$SRC"/. .
+          rm -f -- *.zip
+
+      - name: Commit hasil ekstrak
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Tidak ada perubahan."
+            exit 0
+          fi
+          git commit -m "Extract deploy zip"
+          git push
+          
