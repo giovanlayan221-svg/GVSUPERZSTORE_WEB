@@ -73,6 +73,6 @@ module.exports = {
   order: (ref, sku, customerNo) => call('/prepaid/order', { ref_id: ref, sku, customer_no: customerNo }),
   status: (ref) => call('/transaction/status', { ref_id: ref }),
   // Terima pembayaran: QRIS dinamis (biaya QRIS dibebankan ke pembeli) dan cek status pembayarannya.
-  payCreate: (extId, amount, description) => call('/payment-request', { external_id: extId, amount, description: String(description || '').slice(0, 200), payment_method: 'qris', fee_charge_to: 'user' }),
+  payCreate: (extId, amount, description, method) => call('/payment-request', { external_id: extId, amount, description: String(description || '').slice(0, 200), payment_method: method === 'link' ? 'link' : 'qris', fee_charge_to: 'user' }),   // 'link' = Payment Link (halaman checkout PunyaKios, "Pembayaran Lain")
   payStatus: (extId) => call('/check-status', { external_id: extId }),
 };

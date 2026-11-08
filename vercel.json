@@ -17,6 +17,7 @@
     "api/sync-pending.js": { "maxDuration": 30 },
     "api/punyakios-callback.js": { "maxDuration": 30 },
     "api/pkqris.js": { "maxDuration": 30 },
-    "api/pay.js": { "maxDuration": 30 }
+    "api/pay.js": { "maxDuration": 30 },
+    "api/mangbeli-callback.js": { "maxDuration": 30 }
   }
 }

@@ -374,6 +374,12 @@ html.lite .ftxt,html.lite .gvs b{animation:none}
 .ctab{position:relative;overflow:hidden;text-align:center;padding:36px 20px;background:var(--gradient-hero);border:1px solid var(--edge);border-radius:var(--radius);box-shadow:var(--glow-primary)}
 .ctab h2{font-weight:900;font-size:clamp(22px,4.5vw,32px);margin:0 0 8px}.ctab p{margin:0 0 18px;color:var(--muted-foreground);font-size:14px}
 @media(prefers-reduced-motion:no-preference){.hx{animation:hxin .6s ease both}@keyframes hxin{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}}
+/* pembayaran lain: deretan logo bank/e-wallet */
+.plogos{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:10px}
+.plg{display:flex;align-items:center;justify-content:center;height:34px;padding:4px 6px;border-radius:8px;background:#fff;border:1px solid rgba(0,0,0,.08)}
+.plg img{max-width:100%;max-height:100%;object-fit:contain;display:block}
+@media(min-width:640px){.plogos{grid-template-columns:repeat(6,minmax(0,1fr))}}
+.pkrow{display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:1px solid var(--edge);cursor:pointer}.pkrow input{margin-top:3px;flex:none}
 </style>
 </head>
 <body>
@@ -659,7 +665,7 @@ function chrome() {
   const soc = (S.socials || []).map((l) => { const k = String(l.icon_name || l.label || '').toLowerCase(); const m = { instagram: 'IG', facebook: 'FB', twitter: 'X', x: 'X', youtube: 'YT', tiktok: 'TT', whatsapp: 'WA', mail: ic('mail'), email: ic('mail') }; return `<a href="${esc(l.url)}" target="_blank" rel="noopener" aria-label="${esc(l.label)}">${m[k] || m[Object.keys(m).find((x) => k.includes(x))] || ic('globe')}</a>`; }).join('');
   const wa = String(setting('contact_whatsapp', '') || ''), em = String(setting('contact_email', '') || '');
   $('#ft').innerHTML = `<div class="fin"><div><div class="ftxt">${esc(name)}</div><p class="mu sm" style="max-width:24rem;margin:12px 0 0">Top up game dan apps premium cepat, aman, dan terpercaya. Harga terbaik untuk semua kebutuhan digitalmu.</p>${soc ? `<div class="soc">${soc}</div>` : ''}</div>
-    <div><h4>Metode Pembayaran</h4><div class="mu sm">Saldo Akun · QRIS</div></div>
+    <div><h4>Metode Pembayaran</h4><div class="mu sm">Saldo Akun · QRIS · Pembayaran Lain</div></div>
     <div><h4>Butuh Bantuan?</h4><ul>${wa ? `<li><a href="https://wa.me/${esc(wa.replace(/[^0-9]/g, ''))}" target="_blank" rel="noopener">${ic('chat')} WhatsApp: +${esc(wa.replace(/[^0-9]/g, ''))}</a></li>` : ''}${em ? `<li><a href="mailto:${esc(em)}">${ic('mail')} ${esc(em)}</a></li>` : ''}${!wa && !em ? '<li>Customer service tertera di halaman pesanan.</li>' : ''}</ul></div></div>
     <div class="fstudio"><span class="gvs" role="img" aria-label="GV STUDIO"><b class="sh-w">GV</b><b class="sh-b">STUDIO</b></span></div>
     <div class="copy">© ${new Date().getFullYear()} ${esc(name)}. All rights reserved.</div>`;
@@ -717,6 +723,13 @@ function gridList(q) {
   }).join('');
   return out || '<div class="glass p tc mt mu">Produk belum tersedia.</div>';
 }
+function popHtml() {
+  const c = Math.min(4, Math.max(2, Number(setting('product_grid_cols', '3')) || 3));
+  let items = S.games.filter((g) => g.popular === true);
+  if (!items.length) items = S.games.filter((g) => (g.catalog_type || 'game') === 'game').slice(0, 6);   // belum ada yang ditandai: tampilkan 6 game pertama
+  items = items.slice(0, 12); if (!items.length) return '';
+  return `<section class="wrap" id="populer" style="--cols:${Math.min(c, 3)};--cold:${c + 1}"><div class="sechead mt"><div class="ey">${ICO.zap} Pilihan</div><h2>Game Populer</h2><p>Game yang paling sering di-top up.</p></div><div class="grid">${items.map(gcard).join('')}</div></section>`;
+}
 function searchGames(v) { $('#gl').innerHTML = gridList(v); }
 const FXP = [[5,14,'c',4.2,3.4,0],[17,70,'o',6,4.6,-1.2],[26,32,'c',3.2,2.9,-.6],[36,82,'c',4,3.8,-2],[44,18,'o',5,5.2,-.4],[52,60,'c',3.4,3.1,-1.7],[60,26,'o',4,4.2,-2.6],[68,76,'c',4.6,3.6,-.9],[76,12,'c',3.2,3.3,-1.4],[84,52,'o',6.5,4.8,-3],[92,22,'c',4,3.2,-.2],[93,74,'o',4.4,4.4,-2.2],[12,46,'o',3.6,4,-1.9],[48,44,'c',2.8,2.7,-1],[72,40,'o',3.2,3.9,-.7],[30,8,'o',3,4.5,-2.8]];
 function heroFx() { let ci = 0; return '<div class="fx" aria-hidden="true">' + FXP.filter((q) => q[2] === 'c').map((q) => { const r = [0, 30, -30][ci++ % 3]; return `<i class="fx-c" style="--x:${q[0]}%;--y:${q[1]}%;--s:${q[3]}vw;--t:${q[4]}s;--d:${q[5]}s;--r:${r}deg"></i>`; }).join('') + '</div>'; }
@@ -764,6 +777,7 @@ function pgHome() {
       ${list.length > 1 ? `<div class="hd2" id="hd2">${list.map((_, i) => `<button class="${i === 0 ? 'on' : ''}" onclick="heroGo(${i});HR()" aria-label="Slide ${i + 1}"></button>`).join('')}</div>` : ''}</div></section>
     <section class="wrap feats">${feats.map((f) => `<div class="glass ft1"><div class="fti">${f[0]}</div><div><div class="b">${f[1]}</div><div class="mu sm">${f[2]}</div></div></div>`).join('')}</section>
     ${promoHtml()}
+    ${popHtml()}
     <div class="wrap" id="games" style="--cols:${Math.min(c, 3)};--cold:${c + 1}"><div class="srch mt">${ic('search')}<input class="inp" placeholder="Cari game atau aplikasi..." oninput="searchGames(this.value)"></div><div id="gl">${gridList('')}</div></div>
     ${homeExtra()}`);
   HI = 0; PI = 0;
@@ -836,12 +850,16 @@ function drawDen() {
 }
 function copySn(b) { try { navigator.clipboard.writeText(b.dataset.t).then(() => ok('Disalin'), () => bad('Gagal menyalin')); } catch (e) { bad('Gagal menyalin'); } }
 function setDenTab(i) { G.tab = i; drawDen(); }
+const PLOGOS = [['briva', 'BRIVA'], ['mandiri', 'Mandiri'], ['bni', 'BNI'], ['cimb', 'CIMB Niaga'], ['bsi', 'BSI'], ['danamon', 'Danamon'], ['maybank', 'Maybank'], ['neo', 'Bank Neo'], ['agi', 'Bank Artha Graha'], ['atm-bersama', 'ATM Bersama'], ['dana', 'DANA'], ['ritel', 'Alfamart, Pegadaian, Pos Indonesia']];
+const payName = (m) => (m === 'balance' ? 'Saldo Akun' : m === 'link' ? 'QRIS' : m === 'other' ? 'Pembayaran Lain' : '-');
 function drawPay() {
   const box = $('#gpay'); if (!box) return;
   box.innerHTML = `<div class="pay ${G.pay === 'balance' ? 'on' : ''}" onclick="pickPay('balance')"><div class="b">${ic('wallet')} Saldo Akun</div>
       <div class="mu xs">${S.user ? 'Saldo Anda ' + idr(S.profile ? S.profile.balance : 0) : 'Login untuk memakai saldo'}</div><div class="xs" style="color:var(--ok)">Harga member · otomatis</div></div>
     <div class="pay mt2 ${G.pay === 'link' ? 'on' : ''}" onclick="pickPay('link')"><div class="b">${ic('qr')} QRIS</div>
-      <div class="mu xs">Scan dengan e-wallet atau m-banking apa pun</div><div class="xs" style="color:var(--wa)">Biaya QRIS ditanggung pembeli</div></div>`;
+      <div class="mu xs">Scan dengan e-wallet atau m-banking apa pun</div><div class="xs" style="color:var(--wa)">Biaya QRIS ditanggung pembeli</div></div>
+    <div class="pay mt2 ${G.pay === 'other' ? 'on' : ''}" onclick="pickPay('other')"><div class="b">${ic('wallet')} Pembayaran Lain</div>
+      <div class="mu xs">Bank, e-wallet, dan gerai ritel lewat halaman pembayaran</div><div class="plogos">${PLOGOS.map((l) => `<span class="plg"><img src="/pay-logos/${l[0]}.png" alt="${l[1]}" loading="lazy" decoding="async"></span>`).join('')}</div><div class="xs" style="color:var(--wa);margin-top:8px">Biaya admin ditanggung pembeli</div></div>`;
 }
 const gDen = () => G.dens.find((d) => d.id === G.sel);
 const gPrice = () => { const d = gDen(); if (!d) return 0; return G.pay === 'balance' ? (d.member_price != null ? d.member_price : d.price) : d.price; };
@@ -853,11 +871,11 @@ function drawSum() {
     ${G.promo ? `<div class="xs" style="color:var(--ok);margin-top:4px">Promo ${esc(G.promo.code)} aktif: -${idr(G.promo.discount)}</div>` : ''}
     <div class="sum mt2"><span>Produk</span><span class="tr">${esc(G.game.name)}</span></div>
     <div class="sum"><span>Nominal</span><span class="tr">${d ? esc(d.name) : '-'}</span></div>
-    <div class="sum"><span>Pembayaran</span><span>${G.pay === 'balance' ? 'Saldo Akun' : G.pay === 'link' ? 'QRIS' : '-'}</span></div>
+    <div class="sum"><span>Pembayaran</span><span>${payName(G.pay)}</span></div>
     <div class="sum"><span>Subtotal</span><span>${idr(price)}</span></div>${disc ? `<div class="sum"><span>Diskon</span><span>-${idr(disc)}</span></div>` : ''}
     <div class="sum b" style="border-top:1px solid var(--bd);margin-top:4px;padding-top:8px"><span style="color:var(--tx)">Total</span><span class="gt" style="font-size:17px">${idr(total)}</span></div>
-    ${G.pay === 'link' ? '<div class="mu xs">Biaya QRIS ditambahkan ke total bayar dan ditanggung pembeli.</div>' : ''}
-    <button class="btn pr full mt" id="gbuy" onclick="buy()">${G.pay === 'balance' ? 'Bayar dengan Saldo' : G.pay === 'link' ? 'Lanjut ke Pembayaran' : 'Pilih Metode Pembayaran'}</button>`;
+    ${G.pay === 'link' ? '<div class="mu xs">Biaya QRIS ditambahkan ke total bayar dan ditanggung pembeli.</div>' : ''}${G.pay === 'other' ? '<div class="mu xs">Biaya admin dihitung di halaman pembayaran dan ditanggung pembeli.</div>' : ''}${gDen() && gDen().info_note ? `<div class="xs" style="margin-top:6px;color:var(--wa)">Catatan: ${esc(gDen().info_note)}</div>` : ''}
+    <button class="btn pr full mt" id="gbuy" onclick="buy()">${G.pay === 'balance' ? 'Bayar dengan Saldo' : G.pay === 'link' || G.pay === 'other' ? 'Lanjut ke Pembayaran' : 'Pilih Metode Pembayaran'}</button>`;
 }
 function pickDen(id) { G.sel = id; G.promo = null; drawDen(); drawSum(); }
 function pickPay(m) { G.pay = m; G.promo = null; drawPay(); drawSum(); }
@@ -884,7 +902,7 @@ async function buy() {
       const r = await api('pay', { action: 'order', ...payload });
       ok('Pembayaran saldo berhasil'); await refreshProfile(); chrome(); go('order/' + r.order_code);
     } else {
-      qLoad(true); let it; try { it = await api('pkqris', { action: 'create', kind: 'order', ...payload }); } finally { qLoad(false); }
+      qLoad(true); let it; try { it = await api('pkqris', { action: 'create', kind: 'order', ...(G.pay === 'other' ? { method: 'link' } : {}), ...payload }); } finally { qLoad(false); }
       showPay(it, G.game.name + ' · ' + d.name, async (r) => {
         const o = await db.collection('orders').doc(r.orderId || it.id).get();
         ok('Pembayaran diterima'); await refreshProfile(); chrome();
@@ -956,13 +974,15 @@ function qrSave() {
 // it = respons pkqris create. onDone(r) dipanggil bila pembayaran "selesai" / "dikreditkan".
 function showPay(it, title, onDone) {
   let done = false;
-  openModal(`<div class="phd"><div class="xs brk" style="opacity:.85">${esc(title)}</div><div class="phd-n">${idr(it.total)}</div><div class="phd-r"><span>Nominal ${idr(it.base)}</span>${it.payFee > 0 ? `<span>Biaya QRIS ${idr(it.payFee)}</span>` : ''}</div><div class="phd-t"><i></i><span id="pleft">Berlaku ${fmtLeft(it.expiresAt - Date.now())}</span></div></div>
-    <div id="pbody"><div class="qrwrap mt"><div id="qrq" class="qrbox"></div></div>
+  openModal(`<div class="phd"><div class="xs brk" style="opacity:.85">${esc(title)}</div><div class="phd-n">${idr(it.total)}</div><div class="phd-r"><span>Nominal ${idr(it.base)}</span>${it.checkoutUrl ? '<span>Biaya admin ditambahkan di halaman pembayaran</span>' : it.payFee > 0 ? `<span>Biaya QRIS ${idr(it.payFee)}</span>` : ''}</div><div class="phd-t"><i></i><span id="pleft">Berlaku ${fmtLeft(it.expiresAt - Date.now())}</span></div></div>
+    <div id="pbody">${/^https:\/\//i.test(it.checkoutUrl || '') ? `<div class="tc p"><div class="bigic">${ICO.wallet}</div><p class="mu xs">Pilih bank, e-wallet, atau gerai di halaman pembayaran. Setelah bayar, kembali ke sini: status dicek otomatis.</p></div>
+    <a class="btn pr full" href="${esc(it.checkoutUrl)}" target="_blank" rel="noopener">Buka Halaman Pembayaran</a>
+    <button class="btn full mt2" id="pchk" onclick="payCheck(true)">${ic('check')} Sudah bayar</button>` : `<div class="qrwrap mt"><div id="qrq" class="qrbox"></div></div>
     <p class="mu xs tc">Scan dengan e-wallet atau m-banking apa pun yang mendukung QRIS. Status dicek otomatis setelah kamu bayar.</p>
-    <div class="row gap mt2"><button class="btn full" onclick="qrSave()">${ic('download')} Simpan QR</button><button class="btn pr full" id="pchk" onclick="payCheck(true)">${ic('check')} Sudah bayar</button></div>
+    <div class="row gap mt2"><button class="btn full" onclick="qrSave()">${ic('download')} Simpan QR</button><button class="btn pr full" id="pchk" onclick="payCheck(true)">${ic('check')} Sudah bayar</button></div>`}
     </div>
     <button class="btn full mt2" onclick="closeModal()">Tutup</button>`);
-  qrbox($('#qrq'), it.qris, 220);
+  if ($('#qrq')) qrbox($('#qrq'), it.qris, 220);
   const finish = (html) => { const b = $('#pbody'); if (b) b.innerHTML = html; };
   const check = async (manual) => {
     if (done) return;
@@ -974,11 +994,11 @@ function showPay(it, title, onDone) {
         setTimeout(() => { closeModal(); onDone(r); }, 1100);
       } else if (r.status === 'selisih' || r.status === 'perlu-dicek' || r.status === 'gagal') {
         done = true; finish(`<div class="tc p"><div class="bigic wa">${ICO.alert}</div><div class="sm mu">Pembayaran perlu dicek admin. Hubungi admin dengan bukti pembayaran bila saldo/pesanan belum masuk.</div></div>`);
-      } else if (r.status === 'kadaluarsa') { const l = $('#pleft'); if (l) l.textContent = 'QRIS kedaluwarsa'; }
+      } else if (r.status === 'kadaluarsa') { const l = $('#pleft'); if (l) l.textContent = 'Pembayaran kedaluwarsa'; }
     } catch (e) { if (manual) bad(e.message); } finally { if (manual && btn) btn.disabled = false; }
   };
   window.payCheck = check;
-  const t1 = setInterval(() => { const l = $('#pleft'); if (l && !done) l.textContent = it.expiresAt - Date.now() > 0 ? 'Berlaku ' + fmtLeft(it.expiresAt - Date.now()) : 'QRIS kedaluwarsa'; }, 1000);
+  const t1 = setInterval(() => { const l = $('#pleft'); if (l && !done) l.textContent = it.expiresAt - Date.now() > 0 ? 'Berlaku ' + fmtLeft(it.expiresAt - Date.now()) : 'Pembayaran kedaluwarsa'; }, 1000);
   const t2 = setInterval(() => check(false), 4000);
   S.cleanup = () => { clearInterval(t1); clearInterval(t2); done = true; };
 }
@@ -1163,8 +1183,8 @@ const FORMS = {
     { k: 'category_id', l: 'Kategori', t: 'select', opts: catOpts }, { k: 'product_type', l: 'Jenis', t: 'select', opts: [['topup', 'Top Up (butuh ID akun)'], ['voucher', 'Voucher / Akun Premium (tanpa ID)']] },
     { k: 'account_requirement', l: 'Data akun pembeli', t: 'select', opts: [['uid', 'UID saja'], ['uid_server', 'UID + Server'], ['none', 'Tidak perlu']] },
     { k: 'description', l: 'Deskripsi', t: 'textarea', opt: true }, { k: 'logo_url', l: 'Gambar Produk (kartu & halaman produk)', t: 'image', max: 640 }, { k: 'icon_url', l: 'Ikon kecil (opsional)', t: 'image', max: 256 }, { k: 'banner_url', l: 'Banner halaman produk (opsional)', t: 'image', max: 1280 },
-    { k: 'sort_order', l: 'Urutan', t: 'number', def: 0 }, { k: 'active', l: 'Aktif (tampil di web)', t: 'check' }],
-    defaults: { category_id: 'game', product_type: 'topup', account_requirement: 'uid', active: true, sort_order: 0 },
+    { k: 'sort_order', l: 'Urutan', t: 'number', def: 0 }, { k: 'popular', l: 'Tampilkan di Game Populer (di atas pencarian beranda)', t: 'check' }, { k: 'active', l: 'Aktif (tampil di web)', t: 'check' }],
+    defaults: { category_id: 'game', product_type: 'topup', account_requirement: 'uid', active: true, sort_order: 0, popular: false },
     row: (r) => `<div class="b sm trunc">${esc(r.name)} ${r.active === false ? '<span class="badge b-mu">nonaktif</span>' : ''}</div><div class="xs mu">${esc((CATS.find((c) => c.slug === (r.catalog_type || 'game')) || {}).name || '')} · /${esc(r.slug)}</div>`,
     pre: (o) => { const c = CATS.find((x) => x.id === o.category_id) || CATS[0]; o.catalog_type = c.slug; o.category = c.name; o.slug = slugify(o.slug || o.name); if (!o.slug) throw new Error('Slug tidak valid'); o.requires_server = o.account_requirement === 'uid_server'; return o; } },
   banners: { col: 'banners', title: 'Banner Hero', sort: byOrder, filter: (r) => r.kind !== 'promo', fields: () => [
@@ -1193,10 +1213,10 @@ const FORMS = {
     { k: 'name', l: 'Nama nominal', t: 'text', req: true, ph: 'mis. 86 Diamond / Netflix 1 Bulan' }, { k: 'price', l: 'Harga jual (Rp)', t: 'number', req: true },
     { k: 'member_price', l: 'Harga member / saldo (Rp, opsional)', t: 'number', opt: true }, { k: 'original_price', l: 'Harga coret (opsional)', t: 'number', opt: true }, { k: 'badge', l: 'Label (mis. Hemat)', t: 'text', opt: true },
     { k: 'subcategory_id', l: 'Sub-kategori', t: 'select', opts: [['', '— tanpa —']].concat((AD.subs || []).map((s) => [s.id, s.name])) },
-    { k: 'provider', l: 'Kirim otomatis via', t: 'select', opts: [['', 'Manual (admin proses sendiri)'], ['haybi', 'HAYBI'], ['punyakios', 'PunyaKios']] }, { k: 'provider_sku', l: 'Kode produk / SKU provider', t: 'text', opt: true },
+    { k: 'provider', l: 'Kirim otomatis via', t: 'select', opts: [['', 'Manual (admin proses sendiri)'], ['haybi', 'HAYBI'], ['punyakios', 'PunyaKios'], ['mangbeli', 'MangBeli']] }, { k: 'provider_sku', l: 'Kode produk / SKU provider', t: 'text', opt: true },
     { k: 'sort_order', l: 'Urutan', t: 'number', def: 0 }, { k: 'active', l: 'Aktif', t: 'check' }],
     defaults: { active: true, sort_order: 0, provider: '' },
-    row: (r) => `<div class="b sm trunc">${esc(r.name)} ${r.active === false ? '<span class="badge b-mu">nonaktif</span>' : ''}</div><div class="xs mu">${idr(r.price)}${r.member_price != null ? ' · member ' + idr(r.member_price) : ''} · <span class="badge ${r.provider === 'punyakios' ? 'b-pr' : r.provider === 'haybi' ? 'b-ok' : 'b-mu'}">${r.provider === 'punyakios' ? 'PunyaKios' : r.provider === 'haybi' ? 'HAYBI' : 'Manual'}</span> ${esc(r.provider_sku || '')}</div>`,
+    row: (r) => `<div class="b sm trunc">${esc(r.name)} ${r.active === false ? '<span class="badge b-mu">nonaktif</span>' : ''}</div><div class="xs mu">${idr(r.price)}${r.member_price != null ? ' · member ' + idr(r.member_price) : ''} · <span class="badge ${r.provider === 'punyakios' ? 'b-pr' : r.provider === 'haybi' || r.provider === 'mangbeli' ? 'b-ok' : 'b-mu'}">${PN[r.provider] || 'Manual'}</span> ${esc(r.provider_sku || '')}</div>`,
     pre: (o) => { if (o.provider && !o.provider_sku) throw new Error('Isi kode produk (SKU) bila memakai provider'); if (!o.provider) { o.provider = null; o.provider_sku = null; } o.game_id = S.dgame; return o; } }
 };
 async function heroSeed(b) {
@@ -1367,24 +1387,26 @@ async function saveSettings() {
 /* ---------- PROVIDER ---------- */
 function tProv(b) {
   const o = location.origin;
-  const wh = [['PunyaKios (QRIS + transaksi)', o + '/api/punyakios-callback'], ['HAYBI (status transaksi)', o + '/api/haybi-callback'], ['Penyapu otomatis (cron-job.org, opsional)', o + '/api/sync-pending?secret=ISI_CRON_SECRET']];
+  const wh = [['PunyaKios (QRIS + Pembayaran Lain + transaksi)', o + '/api/punyakios-callback'], ['MangBeli (status transaksi, daftar di menu API Saya)', o + '/api/mangbeli-callback'], ['HAYBI (status transaksi)', o + '/api/haybi-callback'], ['Penyapu otomatis (cron-job.org, opsional)', o + '/api/sync-pending?secret=ISI_CRON_SECRET']];
   b.innerHTML = `<div class="glass p"><div class="b">Alamat Webhook</div>${wh.map((w) => `<div class="mt2"><div class="mu xs">${w[0]}</div><div class="row"><div class="mono xs grow brk">${esc(w[1])}</div><button class="btn sm" onclick="navigator.clipboard.writeText('${esc(w[1])}');ok('Disalin')">Salin</button></div></div>`).join('')}</div>
-    <div class="glass p mt"><div class="b">Cek Koneksi & Saldo</div><div class="row wrapf gap mt2"><button class="btn sm" onclick="provCall('pk_saldo')">Saldo PunyaKios</button><button class="btn sm" onclick="provCall('saldo')">Saldo HAYBI</button><button class="btn sm" onclick="provCall('pk_untung')">Untung 30 hari</button><button class="btn sm" onclick="provDiag()">Diagnosa pembayaran</button></div>
+    <div class="glass p mt"><div class="b">Cek Koneksi & Saldo</div><div class="row wrapf gap mt2"><button class="btn sm" onclick="provCall('pk_saldo')">Saldo PunyaKios</button><button class="btn sm" onclick="provCall('saldo')">Saldo HAYBI</button><button class="btn sm" onclick="provCall('mb_saldo')">Saldo MangBeli</button><button class="btn sm" onclick="provCall('pk_untung')">Untung 30 hari</button><button class="btn sm" onclick="provDiag()">Diagnosa pembayaran</button></div>
       <div class="row mt2"><input class="inp" id="pk_q" placeholder="Cari SKU PunyaKios (mis. game)"><button class="btn sm" onclick="provCall('pk_produk')">Cari</button></div><pre id="pout" class="mono xs brk" style="white-space:pre-wrap;max-height:320px;overflow:auto;margin:10px 0 0"></pre></div>
     <div class="glass p mt"><div class="b">Ambil Produk dari Reseller</div><p class="mu xs" style="margin:4px 0 0">Pilih reseller dan kategori, tekan Cek dulu, lalu Impor. Produk yang sudah ada (SKU sama atau nama nominal sama di game yang sama) tidak ditambahkan lagi. Harga jual = modal + margin %.</p>
-      <div class="row wrapf gap mt2"><select class="inp" id="hb_pv" style="width:auto"><option value="haybi">HAYBI</option><option value="punyakios">PunyaKios</option></select><select class="inp" id="hb_ct" style="width:auto"><option value="game">Kategori: Game</option><option value="apps">Kategori: Apps Premium</option></select><input class="inp" id="hb_mg" type="number" inputmode="decimal" value="5" style="width:90px" placeholder="Margin %"><span class="mu xs">margin %</span></div>
+      <div class="row wrapf gap mt2"><select class="inp" id="hb_pv" style="width:auto"><option value="haybi">HAYBI</option><option value="punyakios">PunyaKios</option><option value="mangbeli">MangBeli</option></select><select class="inp" id="hb_ct" style="width:auto"><option value="game">Kategori: Game</option><option value="apps">Kategori: Apps Premium</option></select><input class="inp" id="hb_mg" type="number" inputmode="decimal" value="5" style="width:90px" placeholder="Margin %"><span class="mu xs">margin %</span></div>
       <input class="inp mt2" id="hb_pc" placeholder="PunyaKios: kategori (opsional, mis. game / apps premium)">
       <div class="g2 mt2"><button class="btn full" id="hb_chk" onclick="hbSync(false)">Cek dulu</button><button class="btn pr full" id="hb_go" onclick="hbSync(true)">Impor Semua</button></div>
+      <button class="btn full mt2" id="hb_pk" onclick="hbPick()">Pilih Produk Satuan (centang sendiri)</button>
       <div class="g2 mt2"><button class="btn full" onclick="hbTidy()">Rapikan dan Hapus Duplikat</button><button class="btn full" onclick="urutHarga({ all: true })">Urutkan Harga Semua Produk</button><button class="btn full" style="color:var(--er)" onclick="hbWipe()">Hapus Semua Nominal</button></div>
       <button class="btn full mt2" onclick="rebuildAll()">Sinkronkan Semua Data ke Pembeli Sekarang</button>
       <div class="mu xs mt2">Catatan kuota: tombol Rapikan, Urutkan Semua, Margin, dan Hapus membaca semua nominal (1 baca per nominal). Pakai seperlunya.</div><div id="hb_box" class="mu sm mt2"></div></div>
     <div class="glass p mt"><div class="b">Ubah Margin Semua Produk</div><p class="mu xs" style="margin:4px 0 0">Atur margin per rentang harga modal. Contoh: modal Rp10.000 sampai Rp50.000 margin 2%, Rp50.000 sampai Rp100.000 margin 2,5%. Batas bawah ikut rentang itu, batas atas masuk rentang berikutnya. Harga jual = modal + margin, dibulatkan ke atas per 100.</p>
       <div id="mm_tiers">${mmHtml()}</div>
-      <div class="row wrapf gap mt2"><button class="btn sm" onclick="mmAdd()">Tambah rentang</button><select class="inp" id="mm_pv" style="width:auto"><option value="all">Semua reseller</option><option value="haybi">HAYBI</option><option value="punyakios">PunyaKios</option></select></div>
+      <div class="row wrapf gap mt2"><button class="btn sm" onclick="mmAdd()">Tambah rentang</button><select class="inp" id="mm_pv" style="width:auto"><option value="all">Semua reseller</option><option value="haybi">HAYBI</option><option value="punyakios">PunyaKios</option><option value="mangbeli">MangBeli</option></select></div>
       <input class="inp mt2" id="mm_else" inputmode="decimal" placeholder="Margin % untuk harga di luar rentang (kosong = tidak diubah)">
       <button class="btn pr full mt2" id="mm_go" onclick="margenMassal()">Terapkan Margin</button><div id="mm_box" class="mu sm mt2"></div></div>`;
 }
 let HB = { list: [], prov: 'haybi' };
+const PN = { haybi: 'HAYBI', punyakios: 'PunyaKios', mangbeli: 'MangBeli' };
 const isGameCat = (k) => /game/i.test(String(k || ''));
 const isAppsCat = (k) => /apps?\b|premium|streaming|aplikasi|ott|vpn|musik|film/i.test(String(k || ''));
 const GAMEMAP = [[/free\s*fire\s*max|\bff\s*max\b|\bffm\b/i, 'Free Fire MAX'], [/mobile\s*legends|\bmlbb\b/i, 'Mobile Legends'], [/free\s*fire/i, 'Free Fire'], [/pubg/i, 'PUBG Mobile'], [/honor of kings|\bhok\b/i, 'Honor of Kings'], [/genshin/i, 'Genshin Impact'], [/call of duty|\bcodm\b/i, 'Call of Duty Mobile'], [/arena of valor|\baov\b/i, 'Arena of Valor'], [/valorant/i, 'Valorant'], [/roblox/i, 'Roblox'], [/garena|\bshell\b/i, 'Garena Shell'], [/steam/i, 'Steam Wallet'], [/google\s*play/i, 'Google Play'], [/unipin/i, 'UniPin'], [/ragnarok/i, 'Ragnarok'], [/honkai/i, 'Honkai Star Rail'], [/point\s*blank/i, 'Point Blank'], [/wild\s*rift|league of legends/i, 'Wild Rift'], [/clash/i, 'Clash of Clans'], [/lords\s*mobile/i, 'Lords Mobile'], [/delta\s*force/i, 'Delta Force']];
@@ -1420,6 +1442,10 @@ async function subId(gid, label) {
 }
 async function hbFetch(t) {
   const prov = $('#hb_pv').value, pc = ($('#hb_pc').value || '').trim(), catOk = t === 'apps' ? isAppsCat : isGameCat; HB.prov = prov; HB.pesan = null; HB.sample = null;
+  if (prov === 'mangbeli') {
+    const r = await api('haybi', { action: 'mb_produk' });
+    return (r.products || []).filter((p) => p.sku && p.harga > 0 && (catOk(p.kategori) || isKnown({ operator: p.operator, nama: p.nama }, t))).map((p) => ({ sku: p.sku, nama: p.nama, harga: p.harga, kategori: p.kategori, operator: p.operator, stock: p.stock, note: p.note }));
+  }
   if (prov === 'punyakios') {
     const r = await api('haybi', { action: 'pk_produk', category: pc });
     return (r.products || []).filter((p) => p.sku && p.price > 0 && (pc || catOk(p.category) || isKnown({ operator: p.provider, nama: p.nama }, t))).map((p) => ({ sku: p.sku, nama: p.nama, harga: p.price, kategori: p.category, operator: p.provider }));
@@ -1430,17 +1456,48 @@ async function hbFetch(t) {
   const all = (r.products || []).filter((p) => p.harga > 0), hasCat = all.some((p) => p.kategori);
   return all.filter((p) => (hasCat ? catOk(p.kategori) : false) || isKnown(p, t));
 }
+/* pilih produk reseller satuan: cari, centang, impor hanya yang dipilih */
+async function hbPick() {
+  const box = $('#hb_box'), t = $('#hb_ct').value, btn = $('#hb_pk'); btn.disabled = true; box.innerHTML = '<div class="spin"></div>';
+  try {
+    const list = await hbFetch(t);
+    if (!list.length) { box.innerHTML = `Tidak ada produk ${t === 'apps' ? 'apps premium' : 'game'} terbaca.${HB.pesan ? ' Pesan reseller: ' + esc(HB.pesan) : ''}`; return; }
+    HB.pk = { list: list.slice().sort((a, b) => String(a.nama).localeCompare(String(b.nama))), sel: new Set() };
+    box.innerHTML = `<div class="b sm">${list.length} produk dari ${PN[HB.prov] || HB.prov}. Ketik untuk mencari, centang yang mau ditambahkan.</div>
+      <input class="inp mt2" id="pk_f" placeholder="Cari nama / SKU (mis. mobile legends 86)" oninput="pickList()">
+      <div class="row wrapf gap mt2"><button class="btn sm" onclick="pickAll()">Centang hasil pencarian</button><button class="btn sm" onclick="pickClear()">Kosongkan</button><span class="mu xs" id="pk_n"></span></div>
+      <div id="pk_l" style="max-height:340px;overflow:auto;margin-top:6px"></div>
+      <button class="btn pr full mt2" id="pk_go" onclick="pickGo()">Impor yang dicentang</button>`;
+    pickList();
+  } catch (e) { box.innerHTML = `<span style="color:var(--er)">Gagal: ${esc(e.message)}</span>`; }
+  finally { btn.disabled = false; }
+}
+function pickMatch() { const q = (($('#pk_f') || {}).value || '').trim().toLowerCase(), P = HB.pk; return P.list.map((p, i) => [p, i]).filter(([p]) => !q || (p.nama + ' ' + p.sku + ' ' + (p.operator || '')).toLowerCase().includes(q)); }
+function pickList() {
+  const P = HB.pk; if (!P || !$('#pk_l')) return; const m = pickMatch();
+  $('#pk_l').innerHTML = m.slice(0, 120).map(([p, i]) => `<label class="pkrow"><input type="checkbox" ${P.sel.has(i) ? 'checked' : ''} onchange="pickTog(${i},this.checked)"><div class="grow"><div class="b sm brk">${esc(p.nama)}</div><div class="xs mu brk">${esc(p.operator || p.kategori || '')} · ${esc(p.sku)} · modal ${idr(p.harga)}${p.stock && p.stock !== 'available' ? ' · stok: ' + esc(p.stock) : ''}</div>${p.note ? `<div class="xs" style="color:var(--wa)">${esc(p.note)}</div>` : ''}</div></label>`).join('') + (m.length > 120 ? `<div class="mu xs mt2">Menampilkan 120 dari ${m.length}. Persempit pencarian.</div>` : '') || '<div class="mu sm">Tidak ada yang cocok.</div>';
+  pickCount();
+}
+function pickCount() { const n = $('#pk_n'), g = $('#pk_go'); if (n) n.textContent = HB.pk.sel.size + ' dicentang'; if (g) g.textContent = 'Impor ' + HB.pk.sel.size + ' produk yang dicentang'; }
+function pickTog(i, on) { on ? HB.pk.sel.add(i) : HB.pk.sel.delete(i); pickCount(); }
+function pickAll() { pickMatch().slice(0, 120).forEach(([, i]) => HB.pk.sel.add(i)); pickList(); }
+function pickClear() { HB.pk.sel.clear(); pickList(); }
+async function pickGo() {
+  const P = HB.pk; if (!P || !P.sel.size) return bad('Centang dulu produk yang mau diimpor');
+  HB.only = P.list.filter((_, i) => P.sel.has(i)); HB.prov = $('#hb_pv').value;
+  await hbSync(true);
+}
 async function hbSync(doImport) {
   const box = $('#hb_box'), b1 = $('#hb_chk'), b2 = $('#hb_go'), mg = Number(($('#hb_mg') || {}).value), t = $('#hb_ct').value;
   if (!Number.isFinite(mg) || mg < 0 || mg > 500) return bad('Margin tidak valid');
   b1.disabled = b2.disabled = true; box.innerHTML = '<div class="spin"></div>';
   try {
-    const list = await hbFetch(t);
+    const list = HB.only || await hbFetch(t);
     if (!list.length) { box.innerHTML = `Tidak ada produk ${t === 'apps' ? 'apps premium' : 'game'} terbaca.${HB.pesan ? ' Pesan reseller: ' + esc(HB.pesan) : ''}${HB.sample ? `<pre class="mono xs brk" style="white-space:pre-wrap;max-height:160px;overflow:auto">${esc(JSON.stringify(HB.sample, null, 1).slice(0, 900))}</pre>` : ''}`; return; }
     HB.list = list;
     const groups = {}; list.forEach((p) => { const g = groupOf(p, t); (groups[g] = groups[g] || []).push(p); });
     if (!doImport) {
-      box.innerHTML = `${list.length} produk terbaca dari ${HB.prov === 'punyakios' ? 'PunyaKios' : 'HAYBI'} di ${Object.keys(groups).length} produk:<div class="xs mu mt2">${Object.keys(groups).slice(0, 25).map((n) => esc(n) + ' (' + groups[n].length + ')').join(' · ')}</div><div class="xs mu mt2">Kalau sudah sesuai, tekan Impor Semua. Nominal yang sudah ada otomatis dilewati.</div>`; return;
+      box.innerHTML = `${list.length} produk terbaca dari ${PN[HB.prov] || HB.prov} di ${Object.keys(groups).length} produk:<div class="xs mu mt2">${Object.keys(groups).slice(0, 25).map((n) => esc(n) + ' (' + groups[n].length + ')').join(' · ')}</div><div class="xs mu mt2">Kalau sudah sesuai, tekan Impor Semua. Nominal yang sudah ada otomatis dilewati.</div>`; return;
     }
     const C = t === 'apps' ? { category_id: 'apps', category: 'Apps Premium', catalog_type: 'apps' } : { category_id: 'game', category: 'Top Up Game', catalog_type: 'game' };
     const games = docs(await db.collection('games').get()), bySlug = {}; games.forEach((g) => { bySlug[g.slug] = g; });
@@ -1462,7 +1519,7 @@ async function hbSync(doImport) {
       for (const p of fresh) sids.push(await subId(gid, SUBDEF(nm, p.nama, t)));
       for (let i = 0; i < fresh.length; i += 400) {
         const bt = db.batch();
-        fresh.slice(i, i + 400).forEach((p, j) => { bt.set(db.collection('denominations').doc(), { game_id: gid, subcategory_id: sids[i + j] || '', name: p.nama || p.sku, price: Math.ceil(p.harga * (1 + mg / 100) / 100) * 100, cost_price: p.harga, provider: HB.prov, provider_sku: p.sku, active: true, sort_order: n++, created_at: nowIso(), updated_at: nowIso() }); dMade++; });
+        fresh.slice(i, i + 400).forEach((p, j) => { bt.set(db.collection('denominations').doc(), { game_id: gid, subcategory_id: sids[i + j] || '', name: p.nama || p.sku, price: Math.ceil(p.harga * (1 + mg / 100) / 100) * 100, cost_price: p.harga, provider: HB.prov, provider_sku: p.sku, ...(p.note ? { info_note: String(p.note).slice(0, 200) } : {}), active: true, sort_order: n++, created_at: nowIso(), updated_at: nowIso() }); dMade++; });
         await bt.commit();
       }
     }
@@ -1472,7 +1529,7 @@ async function hbSync(doImport) {
     box.innerHTML = `Selesai: ${gMade} produk baru, ${dMade} nominal ditambahkan, ${dSkip} dilewati (sudah ada). Total terbaca: ${list.length}.`;
     ok(dMade + ' nominal diambil');
   } catch (e) { box.innerHTML = `<span style="color:var(--er)">Gagal: ${esc(e.message)}</span>`; }
-  finally { b1.disabled = b2.disabled = false; }
+  finally { b1.disabled = b2.disabled = false; HB.only = null; }
 }
 /* margin bertingkat: tiap rentang harga modal punya margin sendiri. Harga jual = modal + margin %, dibulatkan ke atas per 100 */
 let MM = (() => { try { const v = JSON.parse(localStorage.getItem('gvz:mmtiers') || 'null'); if (Array.isArray(v) && v.length) return v; } catch (e) { /* abaikan */ } return [{ from: 10000, to: 50000, pct: '2' }, { from: 50000, to: 100000, pct: '2,5' }]; })();

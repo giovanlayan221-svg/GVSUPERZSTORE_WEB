@@ -3,6 +3,7 @@
 const { fail, rp, iso, clean, ledger, notifyUser, db: getDb, logAdmin, admin } = require('./_lib');
 const H = require('./_haybi');
 const PK = require('./_punyakios');
+const MB = require('./_mangbeli');
 
 const LABEL = { processing: 'sedang diproses', success: 'berhasil', failed: 'gagal', cancelled: 'dibatalkan', pending_payment: 'menunggu pembayaran' };
 
@@ -65,6 +66,14 @@ async function checkProvider(x) {
     const cost = Number(dd.amount);
     return { st: PK.norm(dd.status), sn: dd.sn || null, msg: dd.message || null, cost: Number.isFinite(cost) ? cost : null, trx: dd.trx_id || null, raw: res.data };
   }
+  if (x.provider === 'mangbeli') {
+    const res = await MB.status(x.provider_ref);
+    if (res.http === 404) return { st: 'notfound', msg: 'Transaksi tidak ditemukan di MangBeli', raw: res.data };
+    const dd = (res.data && res.data.data) || {};
+    if (!res.ok || (res.data && res.data.success === false) || (dd.ref_id && dd.ref_id !== x.provider_ref)) return { st: 'unknown', msg: (res.data && res.data.message) || ('HTTP ' + res.http), raw: res.data };
+    const cost = Number(dd.price);
+    return { st: MB.norm(dd.status), sn: dd.sn || null, msg: dd.message || null, cost: Number.isFinite(cost) ? cost : null, raw: res.data };
+  }
   const res = await H.cekStatus(x.provider_ref), dd = res.data || {};
   return { st: H.norm(dd), sn: dd.sn || null, msg: dd.pesan || null, rc: dd.rc, raw: dd };
 }
@@ -79,10 +88,10 @@ async function syncOrder(d, orderId, hint) {
   if (!x.provider_ref) return { state: 'nosend' };
   if (x.status !== 'processing') return { state: x.status };
   const c = await checkProvider(x), st = c.st, pesan = c.msg;
-  const who = x.provider === 'punyakios' ? 'PunyaKios' : 'HAYBI';
-  if (st === 'sukses') { await setOrderStatus(d, orderId, 'success', { onlyFrom: ['processing'], sn: c.sn || cleanTxt(hint && hint.sn, 1500) || null, msg: pesan || cleanTxt(hint && hint.msg, 300) || null, cost: x.provider === 'punyakios' ? c.cost : null, trx: c.trx }); return { state: 'sukses', raw: c.raw }; }
-  // PunyaKios mendefinisikan 'failed' sebagai status AKHIR -> refund. (HAYBI 'error' ambigu, jadi tidak di-refund otomatis.)
-  if (st === 'error' && x.provider === 'punyakios') { await setOrderStatus(d, orderId, 'failed', { onlyFrom: ['processing'], msg: 'Transaksi gagal di provider' }); return { state: 'gagal', raw: c.raw }; }
+  const who = x.provider === 'punyakios' ? 'PunyaKios' : x.provider === 'mangbeli' ? 'MangBeli' : 'HAYBI';
+  if (st === 'sukses') { await setOrderStatus(d, orderId, 'success', { onlyFrom: ['processing'], sn: c.sn || cleanTxt(hint && hint.sn, 1500) || null, msg: pesan || cleanTxt(hint && hint.msg, 300) || null, cost: x.provider === 'punyakios' || x.provider === 'mangbeli' ? c.cost : null, trx: c.trx }); return { state: 'sukses', raw: c.raw }; }
+  // PunyaKios dan MangBeli mendefinisikan 'failed' sebagai status AKHIR -> refund. (HAYBI 'error' ambigu, jadi tidak di-refund otomatis.)
+  if (st === 'error' && (x.provider === 'punyakios' || x.provider === 'mangbeli')) { await setOrderStatus(d, orderId, 'failed', { onlyFrom: ['processing'], msg: 'Transaksi gagal di provider' }); return { state: 'gagal', raw: c.raw }; }
   if ((st === 'error' || st === 'notfound') && x.provider_status !== 'error') {
     await d.collection('orders').doc(orderId).update({ provider_status: 'error', provider_message: pesan || ('rc ' + (c.rc || '?')), provider_updated_at: iso(), updated_at: iso() }).catch(() => {});
     const { notifyAdmins } = require('./_lib');

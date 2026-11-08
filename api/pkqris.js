@@ -1,4 +1,4 @@
-// /api/pkqris.js — bayar lewat QRIS dinamis PunyaKios (QR tampil di dalam web, sama seperti GVSMARTPAY): (1) DEPOSIT saldo, (2) PESANAN produk.
+// /api/pkqris.js — bayar lewat QRIS dinamis atau Payment Link ("Pembayaran Lain", method:'link') PunyaKios (QR tampil di dalam web, sama seperti GVSMARTPAY): (1) DEPOSIT saldo, (2) PESANAN produk.
 // Alur: create (link dibuat, pesanan/saldo BELUM ada) -> pelanggan memilih metode & bayar di halaman PunyaKios -> webhook/cek status resmi ("paid") -> diproses SEKALI.
 //  - Biaya admin ditanggung PEMBELI (fee_charge_to: user). Nominal akhir bergantung metode yang dipilih di halaman bayar, jadi dicek dengan batas wajar.
 //  - Pesanan GAGAL setelah dibayar: saldo akun pelanggan bertambah sebesar yang dibayar (harga + biaya QRIS).
@@ -27,7 +27,7 @@ function findUrl(dd) {
 }
 
 async function create(d, uid, b) {
-  const isDep = String(b.kind || 'order') === 'deposit';
+  const isDep = String(b.kind || 'order') === 'deposit', isLink = String(b.method || '') === 'link';   // link = Payment Link PunyaKios ("Pembayaran Lain")
   let ord, base, promoInfo = null, disc = 0;
   if (isDep) {
     const amt = Number(b.amount);
@@ -43,39 +43,41 @@ async function create(d, uid, b) {
     ord = { ...o, game_name: game.name, denomination_name: den.name, name: game.name + ' ' + den.name, unit, discount: disc, promo_code: promoInfo ? promoInfo.code.toUpperCase() : null };
     delete ord.promo_code_raw;
   }
-  if (base < 1000) throw fail(400, 'Total di bawah Rp1.000, QRIS tidak bisa dibuat. Bayar pakai saldo.');
+  if (base < 1000) throw fail(400, 'Total di bawah Rp1.000, pembayaran online tidak bisa dibuat. Bayar pakai saldo.');
   if (base > 50000000) throw fail(400, 'Nominal QRIS maksimal Rp50.000.000');
   const us = await d.doc('profiles/' + uid).get();
   if (!us.exists) throw fail(404, 'Akun tidak ditemukan');
   const now = Date.now();
   const act = await d.collection('qrisPay').where('uid', '==', uid).where('status', '==', 'menunggu').limit(10).get();
-  const live = act.docs.filter((x) => (x.data().expiresAt || 0) > now && x.data().qris);
+  const live = act.docs.filter((x) => (x.data().expiresAt || 0) > now && (x.data().qris || x.data().checkoutUrl));
   // Pembayaran yang sama persis & QRIS masih berlaku: tampilkan QRIS yang sama (bukan membuat baru).
-  const same = live.find((x) => { const q = x.data(), p = q.order || {}; return (q.kind || 'order') === (isDep ? 'deposit' : 'order') && q.base === base && ['denomination_id', 'uid_game', 'server_id', 'whatsapp'].every((k) => String(p[k] || '') === String(ord[k] || '')); });
-  if (same) { const q = same.data(); return { ok: true, id: same.id, qris: q.qris, base: q.base, payFee: q.payFee, total: q.payTotal, expiresAt: q.expiresAt, resumed: true, kind: q.kind || 'order' }; }
+  const same = live.find((x) => { const q = x.data(), p = q.order || {}; return (q.kind || 'order') === (isDep ? 'deposit' : 'order') && (q.method === 'link') === isLink && q.base === base && ['denomination_id', 'uid_game', 'server_id', 'whatsapp'].every((k) => String(p[k] || '') === String(ord[k] || '')); });
+  if (same) { const q = same.data(); return { ok: true, id: same.id, method: q.method || 'qris', checkoutUrl: q.checkoutUrl || null, qris: q.qris, base: q.base, payFee: q.payFee, total: q.payTotal, expiresAt: q.expiresAt, resumed: true, kind: q.kind || 'order' }; }
   if (live.length >= 3) throw fail(429, 'Masih ada 3 pembayaran yang belum dibayar. Selesaikan atau tunggu kedaluwarsa.');
   const ref = d.collection('qrisPay').doc(), id = ref.id, ext = 'GVQ' + id;
-  await ref.set(clean({ uid, userName: us.data().display_name || '', kind: isDep ? 'deposit' : 'order', order: ord, ...(promoInfo ? { promo_id: promoInfo.id, discount: disc } : {}), base, extId: ext, status: 'membuat', createdAt: now, expiresAt: now + WINDOW_MS }));
+  await ref.set(clean({ uid, userName: us.data().display_name || '', kind: isDep ? 'deposit' : 'order', method: isLink ? 'link' : 'qris', order: ord, ...(promoInfo ? { promo_id: promoInfo.id, discount: disc } : {}), base, extId: ext, status: 'membuat', createdAt: now, expiresAt: now + WINDOW_MS }));
   let res;
-  try { res = await PK.payCreate(ext, base, 'GVSUPERZSTORE ' + ord.name); }
+  try { res = await PK.payCreate(ext, base, 'GVSUPERZSTORE ' + ord.name, isLink ? 'link' : 'qris'); }
   catch (e) { await ref.update({ status: 'gagal', err: String(e.message).slice(0, 100) }).catch(() => {}); e.detail = e.message; throw e; }
   const dd = (res.data && res.data.data) || {};
   const qr = [dd.qris_string, dd.qr_string, dd.qris, dd.qr_code].find((v) => typeof v === 'string' && v.length > 20) || '';
+  const curl = isLink ? findUrl(dd) : '';
   const tot = Number(dd.total_amount != null ? dd.total_amount : dd.amount);       // yang HARUS dibayar pelanggan
   const fee = dd.fee_amount != null && Number.isFinite(Number(dd.fee_amount)) ? Number(dd.fee_amount) : tot - base;
   // Tarif PunyaKios: MDR 0,7% + Rp200. Batas longgar menolak angka tak masuk akal.
-  const sane = res.ok && qr && Number.isFinite(tot) && tot >= base && fee >= 0 && tot - base === fee && fee <= Math.round(base * 0.03) + 300;
+  const sane = isLink ? (res.ok && curl && Number.isFinite(tot) && tot >= base && fee >= 0 && fee <= Math.round(base * 0.05) + 10000)   // link: biaya final ditentukan di halaman bayar
+    : res.ok && qr && Number.isFinite(tot) && tot >= base && fee >= 0 && tot - base === fee && fee <= Math.round(base * 0.03) + 300;
   if (!sane) {
     const pm = String((res.data && (res.data.message || res.data.error || (res.data.data && res.data.data.message))) || '').replace(/\s+/g, ' ').slice(0, 160);
-    const why = 'HTTP ' + res.http + (pm ? ' - ' + pm : '') + (res.ok && !qr ? ' (tanpa qris_string)' : '') + (res.ok && qr ? ' (nominal/biaya tidak cocok: base ' + base + ', total ' + tot + ', fee ' + fee + ')' : '');
+    const why = 'HTTP ' + res.http + (pm ? ' - ' + pm : '') + (res.ok && !isLink && !qr ? ' (tanpa qris_string)' : '') + (res.ok && isLink && !curl ? ' (tanpa checkout_url)' : '') + (res.ok && (qr || curl) ? ' (nominal/biaya tidak cocok: base ' + base + ', total ' + tot + ', fee ' + fee + ')' : '');
     console.warn('pkqris create ditolak:', why, 'kunci respons:', Object.keys(dd).join(','));
     await ref.update({ status: 'gagal', err: why.slice(0, 300) }).catch(() => {});
     if ([400, 401, 403, 422, 503].includes(res.http)) await L.notifyAdmins(d, 'QRIS PunyaKios bermasalah', 'Pembuatan QRIS ditolak (' + why.slice(0, 120) + ').', 'qris', '/admin');
     throw fail(502, 'Pembayaran belum bisa dibuat sekarang. Coba lagi sebentar atau bayar pakai saldo.', { detail: why });
   }
   const pe = Date.parse(dd.expires_at), expiresAt = Number.isFinite(pe) && pe > now ? Math.min(pe, now + WINDOW_MS) : now + WINDOW_MS;
-  await ref.update({ status: 'menunggu', trx: dd.trx_id || null, qris: qr, payFee: fee, payTotal: tot, provExpires: dd.expires_at || null, expiresAt });
-  return { ok: true, id, qris: qr, base, payFee: fee, total: tot, expiresAt, kind: isDep ? 'deposit' : 'order' };
+  await ref.update({ status: 'menunggu', trx: dd.trx_id || null, qris: qr, checkoutUrl: curl || null, payFee: fee, payTotal: tot, provExpires: dd.expires_at || null, expiresAt });
+  return { ok: true, id, method: isLink ? 'link' : 'qris', checkoutUrl: curl || null, qris: qr, base, payFee: fee, total: tot, expiresAt, kind: isDep ? 'deposit' : 'order' };
 }
 
 // Kirim pesanan hasil QRIS ke provider. Idempotent (kirim() hanya mengirim sekali). Gagal tidak diam: admin dikabari.
@@ -114,17 +116,17 @@ async function fulfill(d, id) {
       ok = gs.exists && ds.exists && gs.data().active !== false && ds.data().active !== false && Number(ds.data().price) === o.unit && ds.data().game_id === o.game_id;
       if (ok) { game = gs.data(); den = ds.data(); }
     }
-    info = { uid: q.uid, name: o.name || 'Pesanan', base: q.base, total: q.payTotal };
+    info = { uid: q.uid, name: o.name || 'Pesanan', base: q.base, total: q.payTotal, method: q.method || 'qris' };
     if (!ps.exists) { tx.update(ref, { status: 'perlu-dicek', paidAt: now }); outcome = 'perlu-dicek'; return; }
     const p = ps.data();
     const credit = (amount, note) => { // uang masuk ke saldo akun + catatan deposit
       ledger(tx, d, pref, p, { delta: amount, kind: 'deposit', amount, product_name: 'Deposit', note, deposit_id: id });
-      tx.set(d.collection('deposits').doc(id), { deposit_code: makeCode('GVD'), user_id: q.uid, amount, status: 'accepted', note, payment_method_name: 'QRIS', pay_ref: q.extId, processed_at: iso(), created_at: iso() });
+      tx.set(d.collection('deposits').doc(id), { deposit_code: makeCode('GVD'), user_id: q.uid, amount, status: 'accepted', note, payment_method_name: q.method === 'link' ? 'Pembayaran Lain' : 'QRIS', pay_ref: q.extId, processed_at: iso(), created_at: iso() });
     };
     if (isDep) { credit(q.base, 'Deposit via QRIS PunyaKios'); tx.update(ref, { status: 'selesai', paidAt: now }); outcome = 'deposit'; return; }
     if (ok) {
       const code = makeCode('GVO');
-      tx.set(d.collection('orders').doc(id), clean({ order_code: code, user_id: q.uid, game_id: o.game_id, denomination_id: o.denomination_id, game_name: game.name, denomination_name: den.name, payment_method_name: 'QRIS', uid_game: o.uid_game, server_id: o.server_id || null, whatsapp: o.whatsapp, amount: q.base, discount: q.discount || 0, promo_code: o.promo_code || null, paid_with_balance: false, pay_method: 'link', pay_fee: q.payFee, pay_ref: q.extId, status: 'processing', created_at: iso(), updated_at: iso() }));
+      tx.set(d.collection('orders').doc(id), clean({ order_code: code, user_id: q.uid, game_id: o.game_id, denomination_id: o.denomination_id, game_name: game.name, denomination_name: den.name, payment_method_name: q.method === 'link' ? 'Pembayaran Lain' : 'QRIS', uid_game: o.uid_game, server_id: o.server_id || null, whatsapp: o.whatsapp, amount: q.base, discount: q.discount || 0, promo_code: o.promo_code || null, paid_with_balance: false, pay_method: 'link', pay_fee: q.payFee, pay_ref: q.extId, status: 'processing', created_at: iso(), updated_at: iso() }));
       tx.update(ref, { status: 'selesai', orderId: id, paidAt: now });
       outcome = 'selesai'; info.code = code; if (q.promo_id) promoNote = { id: q.promo_id, discount: q.discount || 0, uid: q.uid };
     } else {
@@ -136,7 +138,7 @@ async function fulfill(d, id) {
   if (outcome === 'deposit') await L.notifyUser(d, info.uid, 'Deposit berhasil', `Saldo Anda bertambah ${rp(info.base)}.`, 'deposit', '/account');
   else if (outcome === 'selesai') {
     await L.notifyUser(d, info.uid, 'Pembayaran diterima', `${info.name} · ${rp(info.total)} sedang diproses.`, 'order', '/order/' + info.code);
-    await L.notifyAdmins(d, 'Pesanan baru (QRIS)', `${info.code} · ${info.name} · ${rp(info.base)}`, 'order', '/admin');
+    await L.notifyAdmins(d, info.method === 'link' ? 'Pesanan baru (Pembayaran Lain)' : 'Pesanan baru (QRIS)', `${info.code} · ${info.name} · ${rp(info.base)}`, 'order', '/admin');
     if (promoNote) await redeemPromo(d, { id: promoNote.id, ref: d.doc('promo_codes/' + promoNote.id) }, promoNote.uid, id, promoNote.discount);
     await trySend(d, id, info.uid);
   } else if (outcome === 'dikreditkan') await L.notifyUser(d, info.uid, 'Pembayaran masuk ke saldo', `${rp(info.total)} ditambahkan ke saldo akun (waktu bayar habis atau harga produk berubah). Silakan pesan ulang.`, 'deposit', '/account');
@@ -174,6 +176,7 @@ async function syncIntent(d, id, opts) {
     await L.notifyAdmins(d, 'Pembayaran tidak sesuai', `${rp(amt)} dibayar, seharusnya minimal ${rp(q.base)} (${id}). Cek manual.`, 'qris', '/admin');
     return { status: 'selisih' };
   }
+  if (q.method === 'link' && amt > q.base) await ref.update({ payFee: amt - q.base, payTotal: amt }).catch(() => {});   // biaya final pilihan pembeli di halaman bayar (dipakai bila perlu refund ke saldo)
   return fulfill(d, id);
 }
 

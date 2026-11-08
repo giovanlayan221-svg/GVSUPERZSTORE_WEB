@@ -1,14 +1,16 @@
 // /api/haybi.js — satu-satunya pintu website ke provider H2H (HAYBI dan PunyaKios). Kredensial TIDAK pernah keluar dari server.
 // Semua request wajib login. Body JSON { action, ... }
 //   ADMIN saja   : saldo | produk {kategori?,operator?} | harga {produk}        (HAYBI)
+//                  mb_saldo | mb_produk (MangBeli)
 //                  pk_saldo | pk_produk {category?,provider?} | pk_untung {days?} (PunyaKios)
 //   Pemilik/admin: kirim {orderId}  -> kirim pesanan (saldo sudah dipotong / QRIS sudah lunas) ke provider
 //                  status {orderId} -> cek status ke provider & perbarui
-// Provider dipilih admin per NOMINAL (denominations.provider = 'haybi' | 'punyakios', denominations.provider_sku = kode produk).
+// Provider dipilih admin per NOMINAL (denominations.provider = 'haybi' | 'punyakios' | 'mangbeli', denominations.provider_sku = kode produk).
 // Nominal tanpa provider/SKU tetap diproses manual oleh admin.
 const L = require('./_lib');
 const H = require('./_haybi');
 const PK = require('./_punyakios');
+const MB = require('./_mangbeli');
 const { setOrderStatus, syncOrder } = require('./_orders');
 const { fail, iso, notifyAdmins } = L;
 
@@ -47,7 +49,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const PKSRV_RE = /^[A-Za-z0-9._\-]{3,40},[A-Za-z0-9._\-]{1,16}$/;
 function targetOf(x, prov) {
   const gid = String(x.uid_game || '').trim(), srv = String(x.server_id || '').trim();
-  if (gid && gid !== '-') return prov === 'punyakios' && srv ? gid + ',' + srv : gid + srv;
+  if (gid && gid !== '-') return prov === 'punyakios' && srv ? gid + ',' + srv : prov === 'mangbeli' ? gid + (srv ? MB.sep() + srv : '') : gid + srv;
   return String(x.whatsapp || '').replace(/\D/g, '');
 }
 
@@ -67,7 +69,7 @@ async function kirim(d, who, orderId, opts) {
     const ds = await tx.get(d.collection('denominations').doc(x.denomination_id));
     if (!ds.exists) return;
     const p = ds.data();
-    if (!p.provider_sku || !['haybi', 'punyakios'].includes(p.provider)) return;      // belum dipetakan => manual
+    if (!p.provider_sku || !['haybi', 'punyakios', 'mangbeli'].includes(p.provider)) return;      // belum dipetakan => manual
     if (!CODE_RE.test(String(p.provider_sku))) throw fail(400, 'Kode produk (SKU) tidak valid');
     // anti-manipulasi: nominal yang dibayar tidak boleh di bawah harga di database
     const floor = Number(p.member_price != null ? p.member_price : p.price);
@@ -75,6 +77,7 @@ async function kirim(d, who, orderId, opts) {
     const tg = targetOf(x, p.provider);
     if (!(p.provider === 'punyakios' && tg.indexOf(',') >= 0 ? PKSRV_RE.test(tg) : TARGET_RE.test(tg))) throw fail(400, 'Nomor/ID tujuan tidak valid');
     if (p.provider === 'punyakios') { prov = 'punyakios'; ref = 'PK' + orderId; }
+    if (p.provider === 'mangbeli') { prov = 'mangbeli'; ref = 'MB' + orderId; }
     tx.update(or, { provider_ref: ref, provider_status: 'sending', provider: prov, provider_sku: p.provider_sku, provider_sent_at: iso(), provider_updated_at: iso(), updated_at: iso() });
     ord = x; den = p;
   });
@@ -123,6 +126,36 @@ async function kirim(d, who, orderId, opts) {
     }
     await mark({ provider_status: 'unknown', provider_message: 'Status belum pasti, sedang dicek' });
     return { ok: true, state: 'unknown' };
+  }
+
+  if (prov === 'mangbeli') {   // MangBeli: ref_id idempotent (kirim ulang dengan ref_id sama tidak memotong saldo dua kali)
+    let res;
+    try { res = await MB.order(ref, String(den.provider_sku), target); }
+    catch (e) {
+      if (e.code === 'NOCFG') { await release(); return { ok: true, skipped: 'manual', note: 'MangBeli belum dikonfigurasi — diproses manual oleh admin' }; }
+      await mark({ provider_status: 'unknown', provider_message: 'Status belum pasti, sedang dicek' });   // timeout/jaringan: JANGAN refund, order bisa saja sudah masuk
+      return { ok: true, state: 'unknown', note: 'Status belum pasti, dicek ulang otomatis' };
+    }
+    const body = res.data || {}, dd = body.data || {}, em = String(body.message || body.error || ('HTTP ' + res.http)).slice(0, 160);
+    if (res.ok && body.success !== false) {   // HTTP 2xx saja BUKAN bukti berhasil: yang dipakai status transaksinya
+      const st = MB.norm(dd.status);
+      if (dd.ref_id && dd.ref_id !== ref) { await mark({ provider_status: 'unknown', provider_message: 'Respons tidak cocok, sedang dicek' }); return poll(); }
+      if (st === 'sukses') { const c = Number(dd.price); await setOrderStatus(d, orderId, 'success', { onlyFrom: ['processing'], sn: dd.sn || null, msg: dd.message || null, cost: Number.isFinite(c) ? c : null }); return { ok: true, state: 'sukses' }; }
+      if (st === 'error') { await setOrderStatus(d, orderId, 'failed', { onlyFrom: ['processing'], msg: dd.message || 'Transaksi gagal di provider' }); return { ok: true, state: 'error' }; }
+      await mark({ provider_status: st === 'pending' ? 'pending' : 'unknown' });
+      return poll();
+    }
+    if ([400, 401, 402, 404, 429].includes(res.http)) {   // ditolak: pastikan lewat cek status bahwa order memang tidak ada sebelum refund
+      let conf = null; try { conf = await MB.status(ref); } catch (e) { conf = null; }
+      if (conf && conf.http === 404) {
+        await setOrderStatus(d, orderId, 'failed', { onlyFrom: ['processing'], msg: 'Ditolak provider (HTTP ' + res.http + ')' });
+        if (res.http !== 404) await notifyAdmins(d, 'MangBeli menolak order', (ord.order_code || 'Pesanan') + ' · ' + em + ' (HTTP ' + res.http + '). Cek saldo / kredensial MangBeli.', 'order', '/admin');
+        return { ok: true, state: 'error' };
+      }
+      if (conf && conf.ok) { await mark({ provider_status: 'pending' }); return poll(); }
+    }
+    await mark({ provider_status: 'unknown', provider_message: 'Status belum pasti, sedang dicek' });
+    return { ok: true, state: 'unknown', note: 'Penolakan belum terkonfirmasi, tidak di-refund otomatis' };
   }
 
   // ---- HAYBI ----
@@ -199,6 +232,14 @@ module.exports = L.handler(async (req) => {
     if (!r.ok) throw fail(502, 'PunyaKios: ' + String((r.data && (r.data.message || r.data.status)) || 'HTTP ' + r.http).slice(0, 120));
     const list = (Array.isArray(p.products) ? p.products : []).slice(0, 3000).map((x) => ({ sku: String(x.sku || ''), nama: String(x.nama || ''), category: String(x.category || ''), provider: String(x.provider || ''), price: Number(x.price) || 0 }));
     return { ok: true, maintenance: !!p.maintenance, count: list.length, products: list };
+  }
+  if (['mb_saldo', 'mb_produk'].includes(a)) {
+    if (!isAdmin) throw fail(403, 'Khusus admin');
+    const r = a === 'mb_saldo' ? await MB.balance() : await MB.pricelist(), bd = r.data || {};
+    if (!r.ok || bd.success === false) throw fail(502, 'MangBeli: ' + String(bd.message || bd.error || 'HTTP ' + r.http).slice(0, 120));
+    if (a === 'mb_saldo') return { ok: true, saldo: Number((bd.data || {}).balance) || 0, sandbox: !!bd.sandbox };
+    const list = (Array.isArray(bd.data) ? bd.data : []).slice(0, 8000).map((x) => ({ sku: String(x.sku || ''), nama: String(x.product_name || x.sku || '').slice(0, 160), kategori: String(x.category || ''), operator: String(x.brand || ''), harga: Number(x.price) || 0, stock: String(x.stock || ''), note: String(x.note || '').slice(0, 200) })).filter((x) => CODE_RE.test(x.sku) && x.harga > 0);
+    return { ok: true, sandbox: !!bd.sandbox, count: list.length, products: list };
   }
   if (a === 'kirim' || a === 'status') {
     if (!/^[A-Za-z0-9]{10,40}$/.test(String(b.orderId || ''))) throw fail(400, 'orderId tidak valid');

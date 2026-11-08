@@ -61,3 +61,14 @@ Tes dulu dengan SKU Mobile Legends termurah ke akun sendiri sebelum dipakai untu
 - robots.txt, sitemap.xml, dan canonical sudah memakai domain gvsuperzstore.my.id (ganti kalau domain berubah).
 - Beranda: tambah seksi Cara Order, Pertanyaan Umum, dan banner ajakan top up.
 - Setelah deploy: Search Console > Inspeksi URL > Request Indexing, kirim juga sitemap.xml.
+
+
+=== v33: GAME POPULER, MANGBELI, PEMBAYARAN LAIN ===
+1. Game Populer (beranda, di bawah banner promo dan di atas pencarian): Admin > Produk > edit game > centang "Tampilkan di Game Populer". Kalau belum ada yang dicentang, otomatis tampil 6 game pertama.
+2. MangBeli (provider ke-3, nominal pilih "Kirim otomatis via: MangBeli"):
+   Env Vercel: MANGBELI_API_KEY, MANGBELI_API_SECRET (pakai key SANDBOX dulu). Opsional MANGBELI_SERVER_SEP (pemisah user_id dan zone_id, default kosong).
+   Webhook: daftarkan https://<domain>/api/mangbeli-callback di MangBeli > API Saya.
+   Admin > Provider > "Pilih Produk Satuan": pilih reseller MangBeli, kategori, cari, centang produk, impor hanya yang dicentang.
+   Belum jelas di dokumentasi (WAJIB dites di Sandbox): format customer_no game ber-server, GET lewat query string / POST lewat JSON, bentuk respons /status.
+3. Pembayaran Lain = Payment Link PunyaKios (halaman checkout PunyaKios, logo bank di kartu). Env sama dengan QRIS (PUNYAKIOS_*). Memakai endpoint /payment-request dengan payment_method "link"; pastikan masih aktif di PunyaKios v1.4 sebelum produksi.
+   Logo ada di folder pay-logos/.
