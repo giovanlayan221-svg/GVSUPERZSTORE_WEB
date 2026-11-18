@@ -330,6 +330,34 @@ footer#ft{margin-top:96px;border-top:1px solid color-mix(in oklch,var(--border) 
 .dbadge{display:inline-block}
 html.lite .btn.pr::after,html.lite .btn.pr.lg::after,html.lite .fx i,html.lite .qrbox::after,html.lite .sp-logo,html.lite .grid>.gc,html.lite .md,html.lite .ov,html.lite .phd-t i{animation:none!important}
 html.lite .qld-box i{animation-duration:2.2s}
+/* kartu nominal v2 */
+.den{gap:12px}
+.dn{display:flex;flex-direction:column;gap:7px;min-height:96px;padding:14px;border-radius:18px;border:1.5px solid var(--edge);background:linear-gradient(180deg,color-mix(in oklch,var(--primary) 6%,var(--card)),var(--card));overflow:visible;transition:transform .15s,border-color .2s,box-shadow .2s,background .2s}
+.dn:hover{transform:translateY(-2px);border-color:color-mix(in oklch,var(--primary) 55%,transparent);box-shadow:0 8px 22px color-mix(in oklch,var(--primary) 16%,transparent)}
+.dn.on{border-color:var(--primary);background:linear-gradient(180deg,color-mix(in oklch,var(--primary) 16%,var(--card)),color-mix(in oklch,var(--primary) 5%,var(--card)));box-shadow:var(--glow-primary);animation:none}
+.dn.on::after{display:none}
+.dn-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.dn-nm{font:700 13.5px/1.3 Inter,sans-serif;min-width:0}
+.dn-ck{flex:none;width:20px;height:20px;border-radius:50%;border:1.5px solid var(--edge);display:grid;place-items:center;color:transparent;transition:.18s}
+.dn-ck svg{width:12px;height:12px;stroke-width:3.2}
+.dn.on .dn-ck{background:var(--gradient-purple);border-color:transparent;color:#fff}
+.dn-pr{margin-top:auto}
+.dn-p{font:800 17px/1.1 Inter,sans-serif;letter-spacing:-.2px;color:var(--primary)}
+.dn-ds{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:11px}
+.dn-ds s{color:var(--muted-foreground)}
+.dn-ds b{padding:1px 7px;border-radius:999px;background:color-mix(in oklch,var(--ok) 16%,transparent);color:var(--ok);font-weight:700}
+.dn-mb{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:2px;padding-top:7px;border-top:1px dashed var(--edge);font-size:11px;color:var(--muted-foreground)}
+.dn-mb b{color:var(--ok);font-weight:700}
+.dn-ml{display:inline-flex;align-items:center;gap:4px}.dn-ml svg{width:12px;height:12px}
+.dn .bd{top:-9px;right:12px;padding:2px 9px;border-radius:999px;font-size:10px;letter-spacing:.2px;box-shadow:0 4px 10px color-mix(in oklch,var(--primary) 35%,transparent)}
+/* loader Pembayaran Lain (tanpa animasi QR) */
+.qld-ring{position:relative;width:92px;height:92px;margin:0 auto 14px}
+.qld-rsvg{width:100%;height:100%;animation:qlspin 1.1s linear infinite;will-change:transform}
+@keyframes qlspin{to{transform:rotate(360deg)}}
+.qld-wi{position:absolute;inset:0;display:grid;place-items:center}.qld-wi svg{width:34px;height:34px}
+.qld-sub{margin-top:6px;font-size:11.5px;opacity:.75}
+html.lite .qld-rsvg{animation-duration:1.8s}
+
 html.lite *{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
 html.lite .gc{box-shadow:none}
 .dsort{display:flex;justify-content:flex-end;margin:0 0 8px}.dsb{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;border:1px solid oklch(1 0 0/14%);background:transparent;color:inherit;font:600 12px Inter,sans-serif;cursor:pointer}
@@ -837,9 +865,15 @@ async function pgGame(slug) {
 function drawDen() {
   const box = $('#gden'); if (!box) return;
   if (!G.dens.length) { box.innerHTML = '<div class="mu sm">Belum ada nominal untuk produk ini.</div>'; return; }
-  const card = (d) => `<div class="dn ${G.sel === d.id ? 'on' : ''}" onclick="pickDen('${d.id}')">${d.badge ? `<span class="bd">${esc(d.badge)}</span>` : ''}
-    <div class="b sm brk">${esc(d.name)}</div>${d.original_price && d.original_price > d.price ? `<div class="mu xs" style="text-decoration:line-through">${idr(d.original_price)}</div>` : ''}
-    <div class="gt b">${idr(d.price)}</div>${d.member_price != null && d.member_price < d.price ? `<div class="xs" style="color:var(--ok)">Saldo: ${idr(d.member_price)}</div>` : ''}</div>`;
+  const card = (d) => {
+    const disc = d.original_price && d.original_price > d.price ? Math.round((1 - d.price / d.original_price) * 100) : 0;
+    const mem = d.member_price != null && d.member_price < d.price;
+    return `<div class="dn ${G.sel === d.id ? 'on' : ''}" onclick="pickDen('${d.id}')">${d.badge ? `<span class="bd">${esc(d.badge)}</span>` : ''}
+    <div class="dn-top"><div class="dn-nm brk">${esc(d.name)}</div><span class="dn-ck">${ICO.check}</span></div>
+    <div class="dn-pr"><span class="dn-p">${idr(d.price)}</span></div>
+    ${disc > 0 ? `<div class="dn-ds"><s>${idr(d.original_price)}</s><b>Hemat ${disc}%</b></div>` : ''}
+    ${mem ? `<div class="dn-mb"><span class="dn-ml">${ICO.wallet}Via saldo</span><b>${idr(d.member_price)}</b></div>` : ''}</div>`;
+  };
   const groups = [];
   G.subs.forEach((s) => { const it = G.dens.filter((d) => d.subcategory_id === s.id); if (it.length) groups.push([s.name, it]); });
   const rest = G.dens.filter((d) => !G.subs.some((s) => s.id === d.subcategory_id));
@@ -902,7 +936,7 @@ async function buy() {
       const r = await api('pay', { action: 'order', ...payload });
       ok('Pembayaran saldo berhasil'); await refreshProfile(); chrome(); go('order/' + r.order_code);
     } else {
-      qLoad(true); let it; try { it = await api('pkqris', { action: 'create', kind: 'order', ...(G.pay === 'other' ? { method: 'link' } : {}), ...payload }); } finally { qLoad(false); }
+      qLoad(true, null, G.pay === 'other' ? 'other' : 'qris'); let it; try { it = await api('pkqris', { action: 'create', kind: 'order', ...(G.pay === 'other' ? { method: 'link' } : {}), ...payload }); } finally { qLoad(false); }
       showPay(it, G.game.name + ' · ' + d.name, async (r) => {
         const o = await db.collection('orders').doc(r.orderId || it.id).get();
         ok('Pembayaran diterima'); await refreshProfile(); chrome();
@@ -945,18 +979,24 @@ async function doGoogle() {
 
 /* ---------- LOADING QRIS (ungu, ringan) ---------- */
 const QLD_MSG = ['Membuat QRIS...', 'Menghubungi penyedia pembayaran...', 'Menyiapkan kode QR...'];
-function qLoad(on, txt) {
+const QLD_MSG_OTHER = ['Menyiapkan pembayaran...', 'Menghubungi penyedia pembayaran...', 'Membuka halaman pembayaran...'];
+// mode: 'qris' (default, animasi scan QR) atau 'other' (spinner cincin + ikon dompet, tanpa animasi QR)
+function qLoad(on, txt, mode) {
   let el = document.getElementById('qld');
   clearInterval(window.__qlt);
   if (!on) { if (el) { el.classList.add('out'); setTimeout(() => { const e = document.getElementById('qld'); if (e && e.classList.contains('out')) e.remove(); }, 220); } return; }
+  const other = mode === 'other', msgs = other ? QLD_MSG_OTHER : QLD_MSG;
+  if (el && el.dataset.mode !== (other ? 'other' : 'qris')) { el.remove(); el = null; }
   if (!el) {
-    el = document.createElement('div'); el.id = 'qld'; el.className = 'qld';
-    el.innerHTML = '<div class="qld-card"><div class="qld-box"><svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round"><rect x="4" y="4" width="20" height="20" rx="4"/><rect x="40" y="4" width="20" height="20" rx="4"/><rect x="4" y="40" width="20" height="20" rx="4"/><path d="M12 12h4v4h-4zM48 12h4v4h-4zM12 48h4v4h-4z" fill="currentColor" stroke="none"/><path d="M40 40h8v8h-8zM52 52h8v8h-8zM52 40h8M40 56h4"/></svg><i></i></div><div class="b" id="qld_t"></div><div class="qld-dots"><b></b><b></b><b></b></div></div>';
+    el = document.createElement('div'); el.id = 'qld'; el.className = 'qld'; el.dataset.mode = other ? 'other' : 'qris';
+    el.innerHTML = other
+      ? '<div class="qld-card"><div class="qld-ring"><svg class="qld-rsvg" viewBox="0 0 100 100" fill="none"><circle cx="50" cy="50" r="44" stroke="rgba(255,255,255,.18)" stroke-width="6"/><circle class="qld-arc" cx="50" cy="50" r="44" stroke="#fff" stroke-width="6" stroke-linecap="round" stroke-dasharray="70 207"/></svg><span class="qld-wi">' + ICO.wallet + '</span></div><div class="b" id="qld_t"></div><div class="qld-sub">Jangan tutup halaman ini</div></div>'
+      : '<div class="qld-card"><div class="qld-box"><svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round"><rect x="4" y="4" width="20" height="20" rx="4"/><rect x="40" y="4" width="20" height="20" rx="4"/><rect x="4" y="40" width="20" height="20" rx="4"/><path d="M12 12h4v4h-4zM48 12h4v4h-4zM12 48h4v4h-4z" fill="currentColor" stroke="none"/><path d="M40 40h8v8h-8zM52 52h8v8h-8zM52 40h8M40 56h4"/></svg><i></i></div><div class="b" id="qld_t"></div><div class="qld-dots"><b></b><b></b><b></b></div></div>';
     document.body.appendChild(el);
   }
   el.classList.remove('out');
-  const t = document.getElementById('qld_t'); let i = 0; t.textContent = txt || QLD_MSG[0];
-  if (!txt) window.__qlt = setInterval(() => { i = (i + 1) % QLD_MSG.length; t.textContent = QLD_MSG[i]; }, 1800);
+  const t = document.getElementById('qld_t'); let i = 0; t.textContent = txt || msgs[0];
+  if (!txt) window.__qlt = setInterval(() => { i = (i + 1) % msgs.length; t.textContent = msgs[i]; }, 1800);
 }
 
 /* ---------- PEMBAYARAN (QRIS dinamis PunyaKios, QR tampil di dalam web) ---------- */
